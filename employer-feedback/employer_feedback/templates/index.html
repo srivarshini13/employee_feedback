@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div style="text-align: center; margin-bottom: 40px;">
+    <h2 style="margin-bottom: 12px; font-size: 36px; font-weight: 800; color: #1a202c; letter-spacing: -1px;">Sentiment Analysis Dashboard</h2>
+    <p style="margin-top: 0; font-size: 18px; color: #718096; font-weight: 400;">Paste employee feedback below, one comment per line. The model will analyze overall sentiment and show a comprehensive dashboard.</p>
+  </div>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <!-- Input card -->
+  <div style="margin-bottom: 40px; border: 2px solid #e2e8f0; border-radius: 20px; padding: 35px; background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);">
+    <form method="POST">
+      <label for="feedback_text" style="display: block; margin-bottom: 12px; font-size: 18px; font-weight: 600; color: #2d3748;">
+        📝 Employee Feedback (one per line):
+      </label>
+      <textarea id="feedback_text" name="feedback_text" rows="6"
+                style="width: 100%; margin-top: 8px; padding: 16px; border: 2px solid #cbd5e0; border-radius: 12px; font-size: 15px; font-family: 'Inter', sans-serif; resize: vertical; transition: all 0.3s ease; background: white;"
+                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102, 126, 234, 0.1)'"
+                onblur="this.style.borderColor='#cbd5e0'; this.style.boxShadow='none'">{{ request.form.feedback_text or "" }}</textarea>
+      <br><br>
+      <div style="text-align: center;">
+        <button type="submit" class="btn">🔍 Analyze Feedback</button>
+      </div>
+    </form>
+  </div>
+
+  {% if sentiment_stats %}
+    <!-- Pie Chart and Overall Sentiment Side by Side -->
+    {% if sentiment_stats %}
+      {% set max_sentiment = "Positive" %}
+      {% set max_count = sentiment_stats.positive_count %}
+      {% if sentiment_stats.negative_count > max_count %}
+        {% set max_sentiment = "Negative" %}
+        {% set max_count = sentiment_stats.negative_count %}
+      {% endif %}
+      {% if sentiment_stats.neutral_count > max_count %}
+        {% set max_sentiment = "Neutral" %}
+        {% set max_count = sentiment_stats.neutral_count %}
+      {% endif %}
+      
+      {% if max_sentiment == 'Positive' %}
+        {% set bg_gradient = 'linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%)' %}
+        {% set border_color = 'rgba(72, 187, 120, 0.3)' %}
+        {% set text_color = '#22543d' %}
+        {% set sub_text_color = '#2f855a' %}
+        {% set emoji = '😊' %}
+        {% set stars = '⭐⭐⭐⭐⭐' %}
+      {% elif max_sentiment == 'Negative' %}
+        {% set bg_gradient = 'linear-gradient(135deg, #fed7d7 0%, #fc8181 100%)' %}
+        {% set border_color = 'rgba(245, 101, 101, 0.3)' %}
+        {% set text_color = '#742a2a' %}
+        {% set sub_text_color = '#991b1b' %}
+        {% set emoji = '☹️' %}
+        {% set stars = '⭐' %}
+      {% else %}
+        {% set bg_gradient = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' %}
+        {% set border_color = 'rgba(245, 158, 11, 0.3)' %}
+        {% set text_color = '#78350f' %}
+        {% set sub_text_color = '#92400e' %}
+        {% set emoji = '😐' %}
+        {% set stars = '⭐⭐⭐' %}
+      {% endif %}
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-bottom: 40px;">
+        <!-- Pie Chart on Left -->
+        <div style="border: 2px solid #e2e8f0; border-radius: 20px; padding: 25px; background: white; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);">
+          <h3 style="font-size: 20px; margin-top: 0; margin-bottom: 20px; font-weight: 700; color: #1a202c; text-align: center; letter-spacing: -0.5px;">📊 Sentiment Analysis Pie Chart</h3>
+          <div style="max-width: 100%; height: 300px; position: relative;">
+            <canvas id="sentimentPieChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Overall Sentiment Prediction on Right -->
+        <div style="padding: 35px; border-radius: 20px; text-align: center; background: {{ bg_gradient }}; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15); border: 3px solid {{ border_color }}; display: flex; flex-direction: column; justify-content: center;">
+          <div style="font-size: 64px; margin-bottom: 15px;">{{ emoji }}</div>
+          <h2 style="font-size: 32px; font-weight: 800; color: {{ text_color }}; margin-bottom: 10px;">
+            Overall Sentiment: {{ max_sentiment }}
+          </h2>
+          <p style="font-size: 18px; color: {{ sub_text_color }}; font-weight: 600; margin-bottom: 15px;">
+            Prediction: {{ max_sentiment }} sentiment detected
+          </p>
+          <div style="font-size: 28px; color: #fbbf24;">{{ stars }}</div>
+          <p style="font-size: 14px; color: #4a5568; margin-top: 10px; font-weight: 500;">
+            Based on {{ max_count }} out of {{ sentiment_stats.total }} feedback{{ 's' if sentiment_stats.total != 1 else '' }}
+          </p>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Word cloud + table row -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px;">
+      <!-- Word cloud -->
+      <div style="border: 2px solid #e2e8f0; border-radius: 20px; padding: 30px; background: white; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);">
+        <h3 style="font-size: 22px; margin-top: 0; margin-bottom: 20px; font-weight: 700; color: #1a202c; text-align: center; letter-spacing: -0.5px;">💬 What Are People Talking About?</h3>
+        <div style="border: 2px dashed #cbd5e0; border-radius: 16px; padding: 25px; min-height: 200px; background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); text-align: center;">
+          {% if keywords %}
+            {% set max_count = keywords[0][1] %}
+            {% for word, count in keywords %}
+              {% set size = (14 + 24 * (count / max_count))|round(2) %}
+              <span class="wc-word" data-size="{{ size }}" data-word="{{ word }}" style="margin: 6px; display: inline-block; color: #4a5568; font-weight: 500; transition: all 0.2s ease;"
+                    onmouseover="this.style.color='#667eea'; this.style.transform='scale(1.1)'"
+                    onmouseout="this.style.color='#4a5568'; this.style.transform='scale(1)'">
+                {{ word }}
+              </span>
+            {% endfor %}
+            <script>
+              document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('.wc-word').forEach(function(el){
+                  const size = el.getAttribute('data-size') || '14';
+                  el.style.fontSize = size + 'px';
+                });
+              });
+            </script>
+          {% else %}
+            <p style="color: #a0aec0; font-size: 16px; margin-top: 60px;">Run the analysis to see common words.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Detailed table -->
+      <div style="border: 2px solid #e2e8f0; border-radius: 20px; padding: 30px; background: white; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);">
+        <h3 style="font-size: 22px; margin-top: 0; margin-bottom: 20px; font-weight: 700; color: #1a202c; text-align: center; letter-spacing: -0.5px;">📋 Detailed Sentiment Analysis & Ratings</h3>
+        <div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%); border-radius: 12px; border-left: 4px solid #38b2ac;">
+          <strong style="color: #234e52;">📌 Rating System:</strong>
+          <span style="color: #2d3748; margin-left: 10px;">Positive = ⭐⭐⭐⭐⭐ (5 stars) | Neutral = ⭐⭐⭐ (3 stars) | Negative = ⭐ (1 star)</span>
+        </div>
+        <div style="max-height: 400px; overflow-y: auto; border-radius: 12px; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: center; width: 60px;">#</th>
+                <th>Feedback</th>
+                <th style="text-align: center; width: 100px;">Polarity</th>
+                <th style="text-align: center; width: 150px;">Sentiment</th>
+                <th style="text-align: center; width: 140px;">Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in analysis_result %}
+                <tr>
+                  <td style="text-align: center; font-weight: 600; color: #718096;">{{ loop.index }}</td>
+                  <td style="max-width: 400px; word-wrap: break-word;">{{ row.original }}</td>
+                  <td style="text-align: center; font-weight: 600; color: #4a5568;">{{ row.polarity }}</td>
+                  <td style="text-align: center;">
+                    {% if row.sentiment == "Positive" %}
+                      <span class="badge badge-positive">😊 Positive</span>
+                    {% elif row.sentiment == "Negative" %}
+                      <span class="badge badge-negative">☹️ Negative</span>
+                    {% else %}
+                      <span class="badge badge-neutral">😐 {{ row.sentiment }}</span>
+                    {% endif %}
+                  </td>
+                  <td style="text-align: center;">
+                    {% if row.sentiment == "Positive" %}
+                      <span style="font-size: 20px; color: #fbbf24;">⭐⭐⭐⭐⭐</span>
+                    {% elif row.sentiment == "Negative" %}
+                      <span style="font-size: 20px; color: #fbbf24;">⭐</span>
+                    {% else %}
+                      <span style="font-size: 20px; color: #fbbf24;">⭐⭐⭐</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart.js script -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <div id="sentiment-data" data-sentiment='{{ sentiment_stats | tojson | safe }}' style="display:none;"></div>
+    <script>
+      (function () {
+        const container = document.getElementById('sentiment-data');
+        const sentimentStats = container ? JSON.parse(container.getAttribute('data-sentiment') || '{}') : {};
+        const posPct = sentimentStats.positive_pct || 0;
+        const neuPct = sentimentStats.neutral_pct || 0;
+        const negPct = sentimentStats.negative_pct || 0;
+        const posCount = sentimentStats.positive_count || 0;
+        const neuCount = sentimentStats.neutral_count || 0;
+        const negCount = sentimentStats.negative_count || 0;
+
+        // Pie chart for sentiment counts with emojis
+        const ctxPie = document.getElementById('sentimentPieChart').getContext('2d');
+        new Chart(ctxPie, {
+          type: 'pie',
+          data: {
+            labels: ['😊 Positive', '😐 Neutral', '☹️ Negative'],
+            datasets: [{
+              label: 'Number of Feedback',
+              data: [posCount, neuCount, negCount],
+              backgroundColor: [
+                'rgba(72, 187, 120, 0.8)',
+                'rgba(245, 158, 11, 0.8)',
+                'rgba(245, 101, 101, 0.8)'
+              ],
+              borderColor: [
+                'rgba(72, 187, 120, 1)',
+                'rgba(245, 158, 11, 1)',
+                'rgba(245, 101, 101, 1)'
+              ],
+              borderWidth: 3,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+              legend: { 
+                display: true,
+                position: 'bottom',
+                labels: {
+                  padding: 15,
+                  font: { size: 12, weight: '600' },
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleFont: { size: 14, weight: 'bold' },
+                bodyFont: { size: 13 },
+                cornerRadius: 8,
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.parsed || 0;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return label + ': ' + value + ' (' + percentage + '%)';
+                  }
+                }
+              }
+            }
+          }
+        });
+      })();
+    </script>
+  {% endif %}
+{% endblock %}
